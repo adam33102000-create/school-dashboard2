@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لوحة القيادة الرقمية</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--tx:#14213d;--ac:#1d4ed8;--mut:#64748b;--bd:#dbe3ee;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f172a;--card:#1e293b;--tx:#f1f5f9;--ac:#60a5fa;--mut:#94a3b8;--bd:#334155}}
+:root[data-theme="dark"]{--bg:#0f172a;--card:#1e293b;--tx:#f1f5f9;--ac:#60a5fa;--mut:#94a3b8;--bd:#334155}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font-family:Tahoma,"Segoe UI",Arial,sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd)}
+header h1{flex:1;margin:0;font-size:clamp(16px,2.4vw,26px);text-align:center}
+button{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 14px}
+button:focus{outline:3px solid var(--ac)}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{flex:1;display:flex;min-height:0;position:relative}
+nav{position:absolute;inset:0 0 0 auto;width:min(300px,85%);background:var(--card);border-inline-start:1px solid var(--bd);transform:translateX(100%);transition:transform .25s;z-index:5;overflow-y:auto;padding:10px}
+nav.open{transform:none}
+nav button{display:block;width:100%;text-align:start;margin-bottom:6px}
+nav button.on{background:var(--ac);color:#fff}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;padding:18px;min-width:0}
+.slide{width:100%;max-width:1000px;background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:clamp(18px,4vw,48px);text-align:center;animation:f .4s}
+@keyframes f{from{opacity:0}to{opacity:1}}
+.slide small{color:var(--mut);font-size:clamp(13px,1.6vw,18px)}
+.slide h2{margin:6px 0 18px;font-size:clamp(22px,4vw,44px);color:var(--ac)}
+.slide p{margin:0;font-size:clamp(20px,3.6vw,40px);line-height:1.6;white-space:pre-wrap}
+footer{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-top:1px solid var(--bd);flex-wrap:wrap}
+.bar{flex:1;min-width:80px;height:6px;background:var(--bd);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ac)}
+#ed{display:none;position:absolute;inset:0;background:var(--bg);z-index:8;overflow-y:auto;padding:14px}
+#ed.open{display:block}
+.row{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-bottom:10px}
+.row input,.row textarea,.cfg input{width:100%;font:inherit;padding:8px;margin-top:6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+.row textarea{min-height:70px}
+.tb{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+</style>
+</head>
+<body>
+<header>
+  <button id="bm" aria-label="القائمة">☰</button>
+  <h1 id="title">لوحة القيادة الرقمية</h1>
+  <button id="be">✏️ تعديل</button>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div class="stage"><div class="slide" id="slide"></div></div>
+  <section id="ed">
+    <div class="tb">
+      <button class="p" id="bd">✔ حفظ وإغلاق</button>
+      <button id="ba">➕ شريحة</button>
+      <button id="bx">⬇ تصدير JSON</button>
+      <button id="bi">⬆ استيراد JSON</button>
+      <button id="br">↺ استعادة الافتراضي</button>
+      <input type="file" id="fi" accept=".json" hidden>
+    </div>
+    <div class="row cfg">عنوان اللوحة<input id="et"> مدة الشريحة بالثواني<input id="es" type="number" min="3" max="120"></div>
+    <div id="list"></div>
+  </section>
+</main>
+<footer>
+  <button id="bp">‹ السابق</button>
+  <button id="bpl" class="p">⏸ إيقاف</button>
+  <button id="bn">التالي ›</button>
+  <div class="bar"><i id="pb"></i></div>
+  <span id="ct"></span>
+  <button id="bt">🌓</button>
+</footer>
+<script>
+var KEY="dashboard.v1";
+var DEF={title:"لوحة القيادة الرقمية",sec:10,slides:[
+{k:"التعريف بالمؤسسة",t:"اسم المؤسسة",v:"مدرسة الشيخ سيدي أحمد الركيبي الابتدائية"},
+{k:"التعريف بالمؤسسة",t:"الهاتف",v:"0000000000"},
+{k:"البنية التحتية",t:"عدد الحجرات الدراسية",v:"12"},
+{k:"البنية المربية",t:"مجموع التلاميذ",v:"350"}
+]};
+DEF.slides[3].k="البنية التربوية";
+var D,i=0,play=true,tm=null,start=0;
+function load(){try{var s=localStorage.getItem(KEY);D=s?JSON.parse(s):JSON.parse(JSON.stringify(DEF))}catch(e){D=JSON.parse(JSON.stringify(DEF))}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
+function $(id){return document.getElementById(id)}
+function esc(s){var d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML}
+function render(){
+  if(!D.slides.length){$("slide").innerHTML="<p>لا توجد شرائح. اضغط تعديل ثم أضف شريحة.</p>";$("ct").textContent="";return}
+  if(i>=D.slides.length)i=0;if(i<0)i=D.slides.length-1;
+  var s=D.slides[i];
+  $("slide").innerHTML="<small>"+esc(s.k)+"</small><h2>"+esc(s.t)+"</h2><p>"+esc(s.v)+"</p>";
+  $("title").textContent=D.title;
+  $("ct").textContent=(i+1)+" / "+D.slides.length;
+  buildNav();restart();
+}
+function buildNav(){
+  var h="";D.slides.forEach(function(s,n){h+='<button data-n="'+n+'" class="'+(n===i?"on":"")+'">'+(n+1)+". "+esc(s.t)+"</button>"});
+  $("nav").innerHTML=h;
+}
+function restart(){
+  clearInterval(tm);start=Date.now();$("pb").style.width="0";
+  if(!play)return;
+  tm=setInterval(function(){
+    var p=(Date.now()-start)/(D.sec*1000);
+    $("pb").style.width=Math.min(100,p*100)+"%";
+    if(p>=1){i++;render()}
+  },100);
+}
+function go(n){i=n;render()}
+function togglePlay(){play=!play;$("bpl").textContent=play?"⏸ إيقاف":"▶ تشغيل";restart()}
+$("bn").onclick=function(){go(i+1)};
+$("bp").onclick=function(){go(i-1)};
+$("bpl").onclick=togglePlay;
+$("bm").onclick=function(){$("nav").classList.toggle("open")};
+$("nav").onclick=function(e){var n=e.target.getAttribute("data-n");if(n!==null){go(+n);$("nav").classList.remove("open")}};
+$("bt").onclick=function(){var r=document.documentElement,d=r.getAttribute("data-theme")==="dark";r.setAttribute("data-theme",d?"light":"dark")};
+document.addEventListener("keydown",function(e){
+  if($("ed").classList.contains("open"))return;
+  var k=e.key;
+  if(k==="ArrowLeft")go(i+1);
+  else if(k==="ArrowRight")go(i-1);
+  else if(k===" "||k==="MediaPlayPause"){e.preventDefault();togglePlay()}
+  else if(k==="Escape")$("nav").classList.remove("open");
+  else if(k==="ArrowUp"||k==="Menu")$("nav").classList.toggle("open");
+});
+/* edit */
+function buildEd(){
+  $("et").value=D.title;$("es").value=D.sec;
+  var h="";
+  D.slides.forEach(function(s,n){
+    h+='<div class="row" data-n="'+n+'"><b>شريحة '+(n+1)+'</b>'+
+    '<input data-f="k" placeholder="المحور" value="'+esc(s.k).replace(/"/g,"&quot;")+'">'+
+    '<input data-f="t" placeholder="العنوان" value="'+esc(s.t).replace(/"/g,"&quot;")+'">'+
+    '<textarea data-f="v" placeholder="المحتوى">'+esc(s.v)+'</textarea>'+
+    '<div class="tb"><button data-a="up">▲</button><button data-a="dn">▼</button><button data-a="del">🗑 حذف</button></div></div>';
+  });
+  $("list").innerHTML=h;
+}
+$("be").onclick=function(){buildEd();$("ed").classList.add("open");clearInterval(tm)};
+$("bd").onclick=function(){
+  D.title=$("et").value||DEF.title;D.sec=Math.max(3,+$("es").value||10);
+  save();$("ed").classList.remove("open");render();
+};
+$("list").oninput=function(e){
+  var r=e.target.closest(".row"),f=e.target.getAttribute("data-f");
+  if(r&&f){D.slides[+r.getAttribute("data-n")][f]=e.target.value;save()}
+};
+$("list").onclick=function(e){
+  var a=e.target.getAttribute("data-a");if(!a)return;
+  var n=+e.target.closest(".row").getAttribute("data-n"),S=D.slides;
+  if(a==="del")S.splice(n,1);
+  else if(a==="up"&&n>0){var t=S[n];S[n]=S[n-1];S[n-1]=t}
+  else if(a==="dn"&&n<S.length-1){var t2=S[n];S[n]=S[n+1];S[n+1]=t2}
+  save();buildEd();
+};
+$("ba").onclick=function(){D.slides.push({k:"محور جديد",t:"عنوان",v:"المحتوى"});save();buildEd()};
+$("br").onclick=function(){D=JSON.parse(JSON.stringify(DEF));save();buildEd()};
+$("bx").onclick=function(){
+  var b=new Blob([JSON.stringify(D,null,1)],{type:"application/json"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="dashboard.json";a.click();
+};
+$("bi").onclick=function(){$("fi").click()};
+$("fi").onchange=function(){
+  var f=this.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){try{var o=JSON.parse(r.result);if(o&&o.slides){D=o;save();buildEd()}}catch(e){alert("ملف غير صالح")}};
+  r.readAsText(f);
+};
+load();render();
+</script>
+</body>
+</html>
